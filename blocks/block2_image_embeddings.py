@@ -22,6 +22,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out_dir", default="./artifacts_block2")
     parser.add_argument("--backbone", default="mobilenetv3small", choices=["mobilenetv3small", "efficientnetb0"])
     parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--no_pretrained", action="store_true")
+    parser.add_argument("--max_items", type=int, default=0, help="Debug limit; 0 means all items.")
     return parser.parse_args()
 
 
@@ -52,6 +55,9 @@ def main() -> None:
         out_dir=args.out_dir,
         backbone=args.backbone,
         batch_size=args.batch_size,
+        device=args.device,
+        pretrained=not args.no_pretrained,
+        max_items=args.max_items or None,
     )
 
 

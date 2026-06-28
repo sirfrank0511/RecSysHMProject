@@ -1,265 +1,213 @@
-# BLOCK 2: IMAGE EMBEDDINGS
-# OBJECTIVES: CREATE IMAGE EMBEDDINGS FOR ARTICLES
+"""Block 2 implementation: create image embeddings with PyTorch/torchvision."""
 
+from __future__ import annotations
 
-
-import os
-from typing import Tuple
-import numpy as np
-import tensorflow as tf
 import argparse
 import glob
 import importlib
+import os
+from dataclasses import dataclass
 
-# Connect Image Path to Specific Article
+import numpy as np
+import torch
+import torch.nn as nn
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from torchvision import models, transforms
+
+
 def article_id_to_image_path(images_dir: str, article_id: int) -> str:
-    # NOTE: H&M images are stored like:
-    # images/0xx/0xxxxxxxxx.jpg
-    # Example: article_id=123456789 -> images/012/0123456789.jpg
-
+    """Map H&M article id to images/0xx/0xxxxxxxxx.jpg."""
     s = str(int(article_id)).zfill(10)
-    sub = s[:3]
-    return os.path.join(images_dir, sub, f"{s}.jpg")
+    return os.path.join(images_dir, s[:3], f"{s}.jpg")
 
-# Build Image Model
-def build_image_model(backbone: str = "mobilenetv3small") -> Tuple[tf.keras.Model, int, tuple]:
-    # Returns model (a pooled feature vector), dim (embedding dimension), image_size (image dimension (h and w))
+
+def choose_device(preferred: str = "auto") -> torch.device:
+    if preferred != "auto":
+        return torch.device(preferred)
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    try:
+        if torch.backends.mps.is_built() and torch.backends.mps.is_available():
+            return torch.device("mps")
+    except Exception:
+        pass
+    return torch.device("cpu")
+
+
+@dataclass(frozen=True)
+class ImageModelSpec:
+    model: nn.Module
+    dim: int
+    image_size: int
+
+
+def build_image_model(backbone: str = "mobilenetv3small", pretrained: bool = True) -> ImageModelSpec:
+    """Return a feature extractor that outputs pooled image vectors."""
     backbone = backbone.lower()
-    if backbone == "efficientnetb0":
-        base = tf.keras.applications.EfficientNetB0(
-            include_top=False, weights="imagenet", pooling="avg"
-        )
-        preprocess = tf.keras.applications.efficientnet.preprocess_input
-        image_size = (224, 224)
-        dim = base.output_shape[-1]  # 1280
-    elif backbone == "mobilenetv3small":
-        base = tf.keras.applications.MobileNetV3Small(
-            include_top=False, weights="imagenet", pooling="avg"
-        )
-        preprocess = tf.keras.applications.mobilenet_v3.preprocess_input
-        image_size = (224, 224)
-        dim = base.output_shape[-1]
+    if backbone == "mobilenetv3small":
+        weights = models.MobileNet_V3_Small_Weights.DEFAULT if pretrained else None
+        model = models.mobilenet_v3_small(weights=weights)
+        dim = int(model.classifier[0].in_features)
+        model.classifier = nn.Identity()
+        image_size = 224
+    elif backbone == "efficientnetb0":
+        weights = models.EfficientNet_B0_Weights.DEFAULT if pretrained else None
+        model = models.efficientnet_b0(weights=weights)
+        dim = int(model.classifier[1].in_features)
+        model.classifier = nn.Identity()
+        image_size = 224
     else:
         raise ValueError(f"Unknown backbone: {backbone}")
+    model.eval()
+    return ImageModelSpec(model=model, dim=dim, image_size=image_size)
 
-    inp = tf.keras.Input(shape=(image_size[0], image_size[1], 3), dtype=tf.float32)
-    x = preprocess(inp)
-    out = base(x)
-    model = tf.keras.Model(inp, out)
-    return model, dim, image_size
 
-# Create Embedding Dataset
-def make_dataset(image_paths: np.ndarray, image_size: tuple, batch_size: int):
-    """
-    image_paths: array of strings length N (N = num_items_including_pad)
-      - may contain "" for PAD or missing images
-    """
+class ImagePathDataset(Dataset):
+    def __init__(self, image_paths: np.ndarray, image_size: int):
+        self.image_paths = image_paths.astype(str)
+        self.image_size = image_size
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize((image_size, image_size), antialias=True),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
 
-    def _load(path):
-        # path: scalar tf.string
-        # if path == "" => return zeros image and valid=0
-        is_empty = tf.equal(path, "")
-        def load_real():
-            bytes_ = tf.io.read_file(path)
-            img = tf.image.decode_jpeg(bytes_, channels=3)
-            img = tf.image.resize(img, image_size, antialias=True)
-            img = tf.cast(img, tf.float32)
-            return img, tf.constant(1, tf.int32)
+    def __len__(self) -> int:
+        return int(len(self.image_paths))
 
-        def load_zero():
-            img = tf.zeros((image_size[0], image_size[1], 3), tf.float32)
-            return img, tf.constant(0, tf.int32)
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        path = self.image_paths[idx]
+        if not path:
+            return torch.zeros((3, self.image_size, self.image_size), dtype=torch.float32), torch.tensor(0, dtype=torch.int8)
+        try:
+            with Image.open(path) as img:
+                x = self.transform(img.convert("RGB"))
+            return x, torch.tensor(1, dtype=torch.int8)
+        except Exception:
+            return torch.zeros((3, self.image_size, self.image_size), dtype=torch.float32), torch.tensor(0, dtype=torch.int8)
 
-        img, valid = tf.cond(is_empty, load_zero, load_real)
-        return img, valid
 
-    ds = tf.data.Dataset.from_tensor_slices(image_paths)
-    ds = ds.map(_load, num_parallel_calls=tf.data.AUTOTUNE)
-    ds = ds.batch(batch_size)
-    ds = ds.prefetch(tf.data.AUTOTUNE)
-    return ds
+def build_image_paths(idx2item_article_id: np.ndarray, num_items_including_pad: int, images_dir: str) -> np.ndarray:
+    image_paths = np.full((num_items_including_pad,), "", dtype=object)
+    for j, article_id in enumerate(idx2item_article_id):
+        item_idx = j + 1
+        path = article_id_to_image_path(images_dir, int(article_id))
+        if os.path.exists(path):
+            image_paths[item_idx] = path
+    return image_paths
 
-# Aggregate Run of Block2
+
 def precompute_image_embeddings(
     idx2item_article_id: np.ndarray,
     num_items_including_pad: int,
     images_dir: str,
     out_dir: str,
-    backbone: str = "efficientnetb0",
+    backbone: str = "mobilenetv3small",
     batch_size: int = 256,
+    device: str = "auto",
+    pretrained: bool = True,
+    max_items: int | None = None,
 ):
-    """
-    idx2item_article_id: shape (I,) list of original article_id values for items seen in train
-                         and corresponds to item_idx 1..I in the SAME ORDER used by item2idx.
-                         (From Block 1 build_id_maps)
+    """Precompute image embeddings aligned to item_idx.
 
-    We build image_paths array of length num_items_including_pad:
-      - image_paths[0] = "" for PAD
-      - image_paths[item_idx] = filepath for that item_idx
+    The output shape is `(num_items_including_pad, embedding_dim)`, with row 0
+    reserved as the zero PAD vector. Missing/unreadable images also receive zero
+    vectors and `has_image=0`.
     """
-
     os.makedirs(out_dir, exist_ok=True)
+    image_paths = build_image_paths(idx2item_article_id, num_items_including_pad, images_dir)
+    if max_items:
+        image_paths = image_paths[:max_items]
+        num_items_including_pad = len(image_paths)
 
-    # ---- Build path array aligned to item_idx ----
-    image_paths = np.full((num_items_including_pad,), "", dtype=object)
-    image_paths[0] = ""  # PAD
+    spec = build_image_model(backbone=backbone, pretrained=pretrained)
+    run_device = choose_device(device)
+    model = spec.model.to(run_device)
 
-    # item_idx = position+1
-    for j, article_id in enumerate(idx2item_article_id):
-        item_idx = j + 1
-        p = article_id_to_image_path(images_dir, int(article_id))
-        if os.path.exists(p):
-            image_paths[item_idx] = p
-        else:
-            image_paths[item_idx] = ""  # missing -> zero vector
+    dataset = ImagePathDataset(image_paths, image_size=spec.image_size)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    # ---- Build model ----
-    model, dim, image_size = build_image_model(backbone=backbone)
-    model.trainable = False
-
-    # Optional speed: mixed precision on GPU
-    # tf.keras.mixed_precision.set_global_policy("mixed_float16")
-
-    ds = make_dataset(image_paths.astype(str), image_size, batch_size)
-
-    # ---- Allocate outputs ----
-    img_emb = np.zeros((num_items_including_pad, dim), dtype=np.float32)
+    img_emb = np.zeros((num_items_including_pad, spec.dim), dtype=np.float32)
     has_image = np.zeros((num_items_including_pad,), dtype=np.int8)
 
-    # ---- Run batches ----
-    idx = 0
-    for batch_imgs, batch_valid in ds:
-        feats = model(batch_imgs, training=False)
-        feats = tf.cast(feats, tf.float32).numpy()  # ensure float32 for saving
+    print("device:", run_device)
+    print("backbone:", backbone, "pretrained:", pretrained)
+    print("embedding dim:", spec.dim)
+    print("items:", num_items_including_pad)
 
-        b = feats.shape[0]
-        img_emb[idx:idx+b] = feats
-        has_image[idx:idx+b] = batch_valid.numpy().astype(np.int8)
-        idx += b
+    offset = 0
+    with torch.no_grad():
+        for batch_imgs, batch_valid in loader:
+            batch_imgs = batch_imgs.to(run_device)
+            feats = model(batch_imgs).detach().cpu().numpy().astype(np.float32)
+            b = feats.shape[0]
+            valid = batch_valid.numpy().astype(np.int8)
+            feats[valid == 0] = 0.0
+            img_emb[offset : offset + b] = feats
+            has_image[offset : offset + b] = valid
+            offset += b
+            if offset % (batch_size * 50) == 0 or offset >= num_items_including_pad:
+                print(f"processed {offset}/{num_items_including_pad}")
 
-        if idx % (batch_size * 50) == 0:
-            print(f"Processed {idx}/{num_items_including_pad} items...")
-
-    # ---- Ensure PAD is zero ----
     img_emb[0, :] = 0.0
     has_image[0] = 0
 
-    # ---- Save ----
     emb_path = os.path.join(out_dir, f"item_image_emb_{backbone}.npy")
     mask_path = os.path.join(out_dir, f"item_has_image_{backbone}.npy")
-
     np.save(emb_path, img_emb)
     np.save(mask_path, has_image)
 
-    print("Saved:", emb_path)
-    print("Saved:", mask_path)
-    print("Embedding shape:", img_emb.shape, "has_image rate:", has_image.mean())
-
+    print("saved:", emb_path)
+    print("saved:", mask_path)
+    print("embedding shape:", img_emb.shape, "has_image rate:", float(has_image.mean()))
     return emb_path, mask_path
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Block 2: Precompute image embeddings aligned to item_idx."
-    )
-
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Block 2: precompute PyTorch image embeddings aligned to item_idx.")
     parser.add_argument("--run", action="store_true", help="Actually run embedding precompute.")
-
-    # Mode Selection
-    parser.add_argument(
-        "--use_block1",
-        action="store_true",
-        help="Run Block 1 (import module + call run_block1) instead of loading saved artifacts."
-    )
-    parser.add_argument(
-        "--block1_module",
-        type=str,
-        default="block1_data",
-        help="Module that defines run_block1() (default: block1_data)."
-    )
-
-    # Artifacts (default path)
-    parser.add_argument(
-        "--idx2item_npy",
-        type=str,
-        default="./artifacts_block1/idx2item_article_id.npy",
-        help="Path to idx2item_article_id.npy saved from Block 1."
-    )
-    parser.add_argument(
-        "--num_items_npy",
-        type=str,
-        default="./artifacts_block1/num_items_including_pad.npy",
-        help="Path to num_items_including_pad.npy saved from Block 1."
-    )
-
-    # Dataset Layout Defaults
-    parser.add_argument(
-        "--images_dir",
-        type=str,
-        default="./Data/images",
-        help="Path to images/ directory (default: ./Data/images)."
-    )
-    parser.add_argument("--out_dir", type=str, default="./artifacts_block2")
-
-    parser.add_argument(
-        "--backbone",
-        type=str,
-        default="mobilenetv3small",
-        choices=["mobilenetv3small", "efficientnetb0"],
-    )
+    parser.add_argument("--use_block1", action="store_true", help="Run Block 1 instead of loading saved artifacts.")
+    parser.add_argument("--block1_module", default="base.data", help="Module that defines run_block1().")
+    parser.add_argument("--idx2item_npy", default="./artifacts_block1/idx2item_article_id.npy")
+    parser.add_argument("--num_items_npy", default="./artifacts_block1/num_items_including_pad.npy")
+    parser.add_argument("--images_dir", default="./Data/images")
+    parser.add_argument("--out_dir", default="./artifacts_block2")
+    parser.add_argument("--backbone", default="mobilenetv3small", choices=["mobilenetv3small", "efficientnetb0"])
     parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--no_pretrained", action="store_true", help="Do not load ImageNet weights.")
+    parser.add_argument("--max_items", type=int, default=0, help="Debug limit; 0 means all items.")
+    return parser.parse_args()
 
-    args = parser.parse_args()
 
+def main() -> None:
+    args = parse_args()
     if not args.run:
         print(
             "\n[Block2] Not running because --run was not provided.\n\n"
-            "Typical (pipeline) usage:\n"
-            "  python blocks/block2_image_embeddings.py --run\n\n"
-            "One-command convenience (re-runs Block 1):\n"
-            "  python blocks/block2_image_embeddings.py --run --use_block1\n"
+            "Typical usage:\n"
+            "  python blocks/block2_image_embeddings.py --run --device mps\n"
         )
         raise SystemExit(0)
 
     if not os.path.exists(args.images_dir):
         raise SystemExit(f"ERROR: images_dir does not exist: {args.images_dir}")
 
-    # Quick sanity check: do we have 0xx subfolders?
     subdirs = [d for d in glob.glob(os.path.join(args.images_dir, "*")) if os.path.isdir(d)]
     if len(subdirs) < 10:
-        print(
-            f"WARNING: {args.images_dir} has only {len(subdirs)} subfolders. "
-            "H&M images usually look like images/0xx/0xxxxxxxxx.jpg. Double-check images_dir."
-        )
+        print(f"WARNING: {args.images_dir} has only {len(subdirs)} subfolders. Double-check images_dir.")
 
-    os.makedirs(args.out_dir, exist_ok=True)
-
-    # ---- Acquire Block 1 outputs ----
     if args.use_block1:
         mod = importlib.import_module(args.block1_module)
-        if not hasattr(mod, "run_block1"):
-            raise SystemExit(f"ERROR: {args.block1_module} has no run_block1()")
         artifacts = mod.run_block1()
         idx2item_article_id = artifacts["idx2item_article_id"]
         num_items_including_pad = int(artifacts["num_items_including_pad"])
-        print("[Block2] Using Block 1 via import:", args.block1_module)
     else:
-        # Default: load saved artifacts
-        for p in [args.idx2item_npy, args.num_items_npy]:
-            if not os.path.exists(p):
-                raise SystemExit(
-                    f"ERROR: Missing Block 1 artifact: {p}\n"
-                    "Run Block 1 first (and save artifacts), or run Block 2 with --use_block1."
-                )
         idx2item_article_id = np.load(args.idx2item_npy)
         num_items_including_pad = int(np.load(args.num_items_npy)[0])
-        print("[Block2] Loaded Block 1 artifacts from disk.")
-
-    print("[Block2] num_items_including_pad:", num_items_including_pad)
-    print("[Block2] items without PAD:", len(idx2item_article_id))
-    print("[Block2] images_dir:", args.images_dir)
-    print("[Block2] out_dir:", args.out_dir)
-    print("[Block2] backbone:", args.backbone, "batch_size:", args.batch_size)
 
     precompute_image_embeddings(
         idx2item_article_id=idx2item_article_id,
@@ -268,4 +216,11 @@ if __name__ == "__main__":
         out_dir=args.out_dir,
         backbone=args.backbone,
         batch_size=args.batch_size,
+        device=args.device,
+        pretrained=not args.no_pretrained,
+        max_items=args.max_items or None,
     )
+
+
+if __name__ == "__main__":
+    main()

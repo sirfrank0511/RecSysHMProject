@@ -40,7 +40,7 @@ This gave us about 21.4M retrieval training examples.
 
 ## Block 2: Item Content Features
 
-Fashion recommendations depend heavily on item appearance. The dataset includes product images, so we used precomputed MobileNet image embeddings aligned to our internal article ids.
+Fashion recommendations depend heavily on item appearance. The dataset includes product images, so we use MobileNet image embeddings aligned to our internal article ids. The active implementation uses PyTorch/torchvision, which keeps the modeling stack consistent with the DNN retrieval block.
 
 The image embedding artifact has:
 

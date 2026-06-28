@@ -33,7 +33,7 @@ Generated data, model artifacts, virtual environments, and submissions are inten
 | Block | Script | Purpose |
 |---|---|---|
 | 1 | `blocks/block1_data.py` | Time split, id mapping, histories, labels |
-| 2 | `blocks/block2_image_embeddings.py` | Check/recompute item image embeddings |
+| 2 | `blocks/block2_image_embeddings.py` | Check/recompute PyTorch/torchvision item image embeddings |
 | 3 | `blocks/block3_retrieval_train.py` | Train PyTorch two-tower DNN retrieval |
 | 4 | `blocks/block4_retrieval_eval.py` | Evaluate retrieval and save candidates |
 | 5 | `blocks/block5_ranker_train.py` | Train hybrid LightGBM ranker |

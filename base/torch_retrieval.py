@@ -1,8 +1,8 @@
 """
 PyTorch two-tower retrieval for the H&M capstone.
 
-This is the GPU-friendly replacement for the TensorFlow retrieval block. It uses
-Apple Silicon MPS when PyTorch can initialize it, CUDA if available, otherwise CPU.
+It uses Apple Silicon MPS when PyTorch can initialize it, CUDA if available,
+otherwise CPU.
 Training examples come from artifacts_block1 produced by data.py.
 """
 
