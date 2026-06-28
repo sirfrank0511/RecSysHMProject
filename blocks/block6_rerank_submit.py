@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from capstone_recommender import map12, rerank
-from data import TRAIN_END, build_id_maps, map_ids, time_split_transactions
-from capstone_recommender import load_data
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from base.capstone_recommender import load_data, map12, rerank
+from base.data import TRAIN_END, build_id_maps, map_ids, time_split_transactions
 
 
 RANKER_DIR = "./artifacts_ranker"

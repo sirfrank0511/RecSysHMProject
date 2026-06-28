@@ -8,13 +8,13 @@ import sys
 
 
 BLOCKS = {
-    "block1": [sys.executable, "block1_data.py"],
-    "block2": [sys.executable, "block2_image_embeddings.py"],
-    "block3": [sys.executable, "block3_retrieval_train.py"],
-    "block4": [sys.executable, "block4_retrieval_eval.py"],
-    "block5": [sys.executable, "block5_ranker_train.py"],
-    "block6": [sys.executable, "block6_rerank_submit.py"],
-    "block7": [sys.executable, "block7_make_submission.py"],
+    "block1": [sys.executable, "blocks/block1_data.py"],
+    "block2": [sys.executable, "blocks/block2_image_embeddings.py"],
+    "block3": [sys.executable, "blocks/block3_retrieval_train.py"],
+    "block4": [sys.executable, "blocks/block4_retrieval_eval.py"],
+    "block5": [sys.executable, "blocks/block5_ranker_train.py"],
+    "block6": [sys.executable, "blocks/block6_rerank_submit.py"],
+    "block7": [sys.executable, "blocks/block7_make_submission.py"],
 }
 
 

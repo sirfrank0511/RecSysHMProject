@@ -1,6 +1,7 @@
 # Python / local environment
 __pycache__/
 *.py[cod]
+debug.py
 .venv*/
 .DS_Store
 .idea/

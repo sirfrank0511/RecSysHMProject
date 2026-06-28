@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
+from pathlib import Path
 
 import lightgbm as lgb
 import pandas as pd
 
-from capstone_recommender import (
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from base.capstone_recommender import (
     PipelineConfig,
     add_features,
     article_to_str,

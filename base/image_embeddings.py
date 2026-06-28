@@ -215,9 +215,9 @@ if __name__ == "__main__":
         print(
             "\n[Block2] Not running because --run was not provided.\n\n"
             "Typical (pipeline) usage:\n"
-            "  python block2_image_embeddings.py --run\n\n"
+            "  python blocks/block2_image_embeddings.py --run\n\n"
             "One-command convenience (re-runs Block 1):\n"
-            "  python block2_image_embeddings.py --run --use_block1\n"
+            "  python blocks/block2_image_embeddings.py --run --use_block1\n"
         )
         raise SystemExit(0)
 

@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from capstone_recommender import (
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from base.capstone_recommender import (
     PipelineConfig,
     add_features,
     attach_labels,
@@ -18,7 +23,7 @@ from capstone_recommender import (
     load_data,
     train_ranker,
 )
-from data import TRAIN_END, build_id_maps, map_ids, time_split_transactions
+from base.data import TRAIN_END, build_id_maps, map_ids, time_split_transactions
 
 
 OUT_DIR = "./artifacts_ranker"
