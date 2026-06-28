@@ -1,0 +1,34 @@
+# Python / local environment
+__pycache__/
+*.py[cod]
+.venv*/
+.DS_Store
+.idea/
+
+# Kaggle data and local raw assets
+Data/
+
+# Generated model/data artifacts
+artifacts_block1/
+artifacts_block2/
+artifacts_torch/
+artifacts_ranker/
+artifacts_ranker_debug/
+capstone_artifacts/
+
+# Generated submissions
+submissions/
+submissions_debug/
+
+# Archived legacy model weights/artifacts
+archive_tensorflow_legacy/artifacts_block3/
+archive_tensorflow_legacy/artifacts_block5/
+
+# Large or temporary outputs
+*.npy
+*.npz
+*.pkl
+*.h5
+*.pt
+*.dat
+*.csv
