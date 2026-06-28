@@ -121,7 +121,7 @@ Run block by block:
 
 ```bash
 python blocks/block1_data.py
-python blocks/block2_image_embeddings.py
+python blocks/block2_image_embeddings.py --run
 python blocks/block3_retrieval_train.py --device mps
 python blocks/block4_retrieval_eval.py --device mps
 python blocks/block5_ranker_train.py
@@ -138,7 +138,7 @@ Convenience runner for PyTorch retrieval on Apple Silicon:
 Thin pipeline runner:
 
 ```bash
-python scripts/run_pipeline.py --from_block block5 --to_block block7
+python scripts/run_pipeline.py --from_block block1 --to_block block7
 ```
 
 ## Submission

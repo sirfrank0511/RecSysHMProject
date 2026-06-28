@@ -9,7 +9,7 @@ import sys
 
 BLOCKS = {
     "block1": [sys.executable, "blocks/block1_data.py"],
-    "block2": [sys.executable, "blocks/block2_image_embeddings.py"],
+    "block2": [sys.executable, "blocks/block2_image_embeddings.py", "--run"],
     "block3": [sys.executable, "blocks/block3_retrieval_train.py"],
     "block4": [sys.executable, "blocks/block4_retrieval_eval.py"],
     "block5": [sys.executable, "blocks/block5_ranker_train.py"],

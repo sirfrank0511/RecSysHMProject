@@ -139,8 +139,18 @@ class TrainConfig:
 def load_model(cfg: TrainConfig) -> tuple[TorchTwoTower, torch.device]:
     num_items = int(np.load(os.path.join(BLOCK1_DIR, "num_items_including_pad.npy"))[0])
     image_emb = None
-    if cfg.use_images and os.path.exists(IMG_EMB_PATH):
+    if cfg.use_images:
+        if not os.path.exists(IMG_EMB_PATH):
+            raise FileNotFoundError(
+                f"Missing image embeddings at {IMG_EMB_PATH}. Run Block 2 first, "
+                "or pass --no_images to train an ID-only retrieval model."
+            )
         image_emb = np.load(IMG_EMB_PATH, mmap_mode="r")
+        if image_emb.shape[0] != num_items:
+            raise ValueError(
+                f"Image embedding rows ({image_emb.shape[0]}) do not match Block 1 num_items ({num_items}). "
+                "Rerun Block 2 after Block 1."
+            )
     device = choose_device(cfg.device)
     model = TorchTwoTower(num_items=num_items, image_emb=image_emb, emb_dim=cfg.emb_dim, temperature=cfg.temperature)
     model.to(device)
