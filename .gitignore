@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 debug.py
 .venv*/
+.torch_cache/
 .DS_Store
 .idea/
 
@@ -24,6 +25,7 @@ submissions_debug/
 # Archived legacy model weights/artifacts
 archive_tensorflow_legacy/artifacts_block3/
 archive_tensorflow_legacy/artifacts_block5/
+archive_artifacts/
 
 # Large or temporary outputs
 *.npy

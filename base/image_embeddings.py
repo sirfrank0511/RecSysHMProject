@@ -44,6 +44,7 @@ class ImageModelSpec:
 
 def build_image_model(backbone: str = "mobilenetv3small", pretrained: bool = True) -> ImageModelSpec:
     """Return a feature extractor that outputs pooled image vectors."""
+    os.environ.setdefault("TORCH_HOME", os.path.abspath(".torch_cache"))
     backbone = backbone.lower()
     if backbone == "mobilenetv3small":
         weights = models.MobileNet_V3_Small_Weights.DEFAULT if pretrained else None

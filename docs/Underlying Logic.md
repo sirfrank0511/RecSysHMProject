@@ -135,8 +135,8 @@ In the full run, the hybrid candidate set contained:
 
 - PyTorch candidates: `1,000,000`
 - heuristic candidates: `10,278,401`
-- unique hybrid candidates: `11,183,222`
-- positive rate: `0.001296`
+- unique hybrid candidates: `11,188,097`
+- positive rate: `0.001295`
 
 ## Block 6: Reranking
 
@@ -149,17 +149,17 @@ It sorts candidates by ranker score and applies light list-level cleanup, includ
 The final validation result is:
 
 ```text
-MAP@12 = 0.05017
-HitRate@12 = 0.21395
-Recall@12 = 0.09467
-MRR@12 = 0.10907
+MAP@12 = 0.05041
+HitRate@12 = 0.21515
+Recall@12 = 0.09476
+MRR@12 = 0.10988
 ```
 
 This is a large improvement over pure DNN retrieval:
 
 ```text
 DNN retrieval only:        0.00156
-Hybrid ranking/reranking:  0.05017
+Hybrid ranking/reranking:  0.05041
 ```
 
 The result confirms that the system architecture is working. The DNN retrieval model contributes learned candidates, while the hybrid retrieval and ranking stages add the short-term and business-specific signals that matter strongly in fashion recommendations.
@@ -167,12 +167,12 @@ The result confirms that the system architecture is working. The DNN retrieval m
 We also added list-quality and business metrics:
 
 ```text
-catalog_coverage = 0.08759
-personalization = 0.91677
-repeat_item_share = 0.23805
-new_item_share_30d = 0.32128
-new_item_share_90d = 0.44923
-avg_item_popularity_percentile = 0.91728
+catalog_coverage = 0.08508
+personalization = 0.91815
+repeat_item_share = 0.23511
+new_item_share_30d = 0.32348
+new_item_share_90d = 0.45015
+avg_item_popularity_percentile = 0.91759
 ```
 
 These metrics make the project more production-oriented. MAP measures relevance, while the additional metrics describe discovery, personalization, popularity bias, repeat behavior, and list diversity.

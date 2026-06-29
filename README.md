@@ -54,13 +54,13 @@ Shared modules:
 Final validation metrics:
 
 ```text
-MAP@12: 0.05017
-HitRate@12: 0.21395
-Recall@12: 0.09467
-MRR@12: 0.10907
-Personalization: 0.91677
-New item share 30d: 0.32128
-Catalog coverage: 0.08759
+MAP@12: 0.05041
+HitRate@12: 0.21515
+Recall@12: 0.09476
+MRR@12: 0.10988
+Personalization: 0.91815
+New item share 30d: 0.32348
+Catalog coverage: 0.08508
 ```
 
 Full metric summary:
